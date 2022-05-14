@@ -202,7 +202,7 @@ export function traverseExpr(c : TreeCursor, s : string) : Expr<null> {
         var index = traverseExpr(c,s);
         c.parent();
         return{
-          tag: "list-lookup",
+          tag: "index",
           list: objExpr,
           index: index
         }
@@ -264,7 +264,7 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
           name: target.name,
           value: value
         }  
-      } else if(target.tag === "list-lookup"){
+      } else if(target.tag === "index"){
           return{
             tag: "index-assign",
             list: target.list,
