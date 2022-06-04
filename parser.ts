@@ -255,8 +255,29 @@ export function traverseStmt(c : TreeCursor, s : string) : Stmt<null> {
       return { tag: "return", value };
     case "AssignStatement":
       c.firstChild(); // go to name
-      const target = traverseExpr(c, s);
-      c.nextSibling(); // go to equals
+      var target = traverseExpr(c, s);
+      c.nextSibling(); // go to equals or comma
+      if(c.type.name === ",") {
+        var names : Array<string> = [];
+        if(target.tag !== "id") throw new Error("Destructive assignment only support ids now.")
+        names.push(target.name);
+        // @ts-ignore
+        while(c.type.name !== "AssignOp") {
+          if(c.type.name !== ",") {
+            names.push(s.substring(c.from, c.to))
+          }
+          c.nextSibling();
+        }
+        c.nextSibling(); // go to value
+        var value = traverseExpr(c, s);
+        c.parent();
+        return {
+          tag: "destructive-assign",
+          names: names,
+          iterable: value
+        }
+      }
+
       c.nextSibling(); // go to value
       var value = traverseExpr(c, s);
       c.parent();
