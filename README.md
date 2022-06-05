@@ -1,36 +1,199 @@
-# ChocoPy
+#Fixed-length Destructuring Assignment for Lists
+### Task
+Describe how you would add destructuring assignment just for lists, and just for fixed-length destructuring, to your compiler (e.g. a = [1,2,3]; x, y, z = a)
 
-### Which features had interactions that you didn’t expect before you started implementing?
+### Implementation Link
+https://github.com/ridiculousJoe/cse231-final/tree/f_destructive
+### Expected Behavior
++ basic function as description:
+```typescript
+assertPrint("destructive-assign-basic",
+        `
+a : [int] = None
+x : int = 0
+y : int = 0
+z : int = 0
+a = [1,2,3]
+x, y, z = a
+print(x)
+print(y)
+print(z)`, ["1", "2", "3"]
+    );
+```
++ destructuring assgin raw list:
+```typescript
+assertPrint("destructive-raw-list",
+        `
+x : int = 0
+y : int = 0
+z : int = 0
 
-+ For the inheritance feature, I did not expect to have interactions with the normal method call feature. During implementation, to implement the inherited methods, I built a vtable to store the $class$method and use call_indirect instruction to call the corresponding method. Thus the original normal method call without inheritance will also transfer to this realization.
-+ For the list feature, what I didn't expect is that `[1, 2, 3, True, None]` is a valid list. This list can not be assigned to any variable, but can be stored in memory, and besides, `print([1, 2, 3, True, None][3])` can get `True`.
+x, y, z = [1,2,3]
+print(x)
+print(y)
+print(z)`, ["1", "2", "3"]
+    );
+```
++ use in function:
+```typescript
+assertPrint("destructive-in-function",
+        `
+x : int = 0
+y : int = 0
+z : int = 0
 
-### What feature are you most proud of in your implementation and why?
+def f(x: int, y: int, z: int) -> int:
+ x, y, z = [3, 4, 5]
+ return x+y+z
 
-+ For the for loop implementation, I utilized the existing while logic. It reduced the repeated code and made the logic converge to one place. This makes later update more easy and clean.
-+ For the nested function implementation, we create a new stage called `lambda lifting`. We added this stage after type checking stage, to handle nested function. In this stage, we used a well-designed DFS algorithm to traverse the nested function tree, and for each function node, we successfully changed its name, calculated its nonlocal and local variables, extended its arguments list, and lifted it to the top level of function definitions. 
+print(f(x,y,z))`, ["12"]
+```
++ check assignability
+```typescript
+assertTCFail("mismatch-id-list-type", `
+a : [int] = None
+x : int = 0
+y : str = "0"
+z : int = 0
 
-### What features remain to implement?
+a = [1, 2, 3]
+x, y, z = a
+print(x)
+print(y)
+print(z) 
+`);
+```
++ check fixed-length, that is the length of left side matches with the right side
+```typescript
+assertTCFail("left-shorter-than-right", `
+a : [int] = None
+x : int = 0
+y : int = 0
 
-+ global
-+ There are still some bugs in nested function implementation (when using nonlocal keyword).
-+ We develop nested function in another branch (nested_func), so we need to merge this branch after all functions working correctly. 
+a = [1,2,3]
+x, y = a
 
-### Is there anything you’re stuck on?
+print(x)
+print(y)
+`);
+assertTCFail("left-longer-than-right", `
+a : [int] = None
+x : int = 0
+y : int = 0
+z : int = 0
+u : int = 0
 
-Everything is good until now. 
+a = [1,2,3]
+x, y, z, u = a
 
-At first, we are stuck on nested function implementation. Specfically, we are not sure how to extend the parameters list after lambda lifting, and where to generate a new reference class. But after thinking it carefully, we have made some progress.
+print(x)
+print(y)
+print(z)
+print(u)
+`);
+```
 
-### Consider programs that work in Python, but not in ChocoPy, involving strings or lists. Pick one that you think would be a straightforward extension to your compiler – describe how you would implement it. 
+### Components of the compiler that would need to be changed
+#### ast.ts
+I added a new statement "destructive-assign" to the ast.ts:
+```typescript
+{  a?: A, tag: "destructive-assign", names: Array<string>, iterable: Expr<A>}
+```
+the names contain all the ids in the left hand, and the iterable represent the list to be destructuring assigned
+#### parser.ts
+```typescript
+case "AssignStatement":
+      c.firstChild(); // go to name
+      var target = traverseExpr(c, s);
+      c.nextSibling(); // go to equals or comma
+      if(c.type.name === ",") {
+        var names : Array<string> = [];
+        if(target.tag !== "id") throw new Error("Destructive assignment only support ids now.")
+        names.push(target.name);
+        // @ts-ignore
+        while(c.type.name !== "AssignOp") {
+          if(c.type.name !== ",") {
+            names.push(s.substring(c.from, c.to))
+          }
+          c.nextSibling();
+        }
+        c.nextSibling(); // go to value
+        var value = traverseExpr(c, s);
+        c.parent();
+        return {
+          tag: "destructive-assign",
+          names: names,
+          iterable: value
+        }
+      }
 
-+ For the inheritance feature, a straightforward extension will be supporting multiple inheritance. ChocoPy does not support multiple inheritance, but python does. I will change the supperclass field in AST.CLASS from a string to a string list. For every logic containing superclass manipulation, I will extend the logic to iterate over all the super classes. The type check will be more complicated. To determine whether a field exists in all super classes, we previously only need to recursively search all the ancestors like a linked list, but in multi-inheritance, we need to search the whole tree like structure. Besides, we also need to figure out the relationship between all super classes to avoid circular inheritance. It can be abstracted as a circle detect problem which can be solved by topology sort.
+      c.nextSibling(); // go to value
+```
+I add the additional logic to parse destructive-assign if we find comma in the left hand
+#### type-check.ts
+```typescript
+case "destructive-assign":
+      const tIterableExpr = tcExpr(env, locals, stmt.iterable);
+      if(tIterableExpr.a.tag !== "list") throw new TypeCheckError("Destructive assignment can only support list currently")
+      if(tIterableExpr.a.listsize !== stmt.names.length) throw new TypeCheckError("Destructive lengths mismatch.")
+      const objType = tIterableExpr.a.elementtype;
+      stmt.names.forEach((name, idx) => {
+        var nameTyp;
+        if (locals.vars.has(name)) {
+          nameTyp = locals.vars.get(name);
+        } else if (env.globals.has(name)) {
+          nameTyp = env.globals.get(name);
+        } else {
+          throw new TypeCheckError("Unbound id: " + name);
+        }
+        if(!isAssignable(env, objType, nameTyp))
+          throw new TypeCheckError(`Non-assignable types, the type of ${name} is ${nameTyp.tag}, mismatches with element type ${objType.tag}`)
+      });
+      return {a: NONE, tag: stmt.tag, names: stmt.names, iterable: tIterableExpr};
+```
+This logic was added to the "tcStmt" function. I first check if the iterable expression is a list, then I check whether the lengths of both sides match with each other.
+If the lengths match, we check the type of each left variable with the object type of the list.
+#### lower.ts
+```typescript
+case "destructive-assign":
+      if(s.iterable.a.tag !== "list") throw new Error("Compiler is cursed, go home.")
+      const elementType = s.iterable.a.elementtype;
+      var valinits : Array<IR.VarInit<Type>> = [];
+      s.names.forEach((name, idx) => {
+        var element : AST.Expr<Type> = {a: elementType, tag: "index", obj: s.iterable, index: PyLiteralExpr(PyInt(idx))};
+        var assignStmt : AST.Stmt<Type> = {  a: NONE, tag: "assign", name: name, value: element };
+        var inits = flattenStmt(assignStmt, blocks, env);
+        valinits.push(...inits);
+      });
+      return valinits
+```
+I finished the implementation in lower.ts level. The above logic was added to "flattenStmt" function.
+The logic is pretty straightforward. I just expand the destructive-assign to many single assign statements, and then reuse the logic for flattening assign statement.
 
-### Pick one that you think would be an extremely difficult extension to your compiler – describe why.
+### Test Results
 
-+ A difficult extention to strings in our compiler would be the String `format()` method in Python. It is difficult because:
+![](./img/1.pic.jpg)
+![](./img/2.pic.jpg)
+![](./img/3.pic.jpg)
+![](./img/4.pic.jpg)
+![](./img/5.pic.jpg)
+![](./img/6.pic.jpg)
 
-  1. the formatted string can not be pre-allocated as string literals; instead, its allocation need to be based on the evaluations of the parameters passed into `format()`.
-  2. `format()` can have a variable number of parameters, which can be either a list of values, a key=value list, or a combination of both.
-  3. the placeholders `{}` in `format()` can be identified using named indexes, numbered indexes, or empty placeholders.
-  4. inside the placeholders there are many formatting types that need to be supported (e.g., `:e`, `:f`, `:x`, etc.).
+You can also run
+```shell
+npm run test
+```
+I added all the test cases to the test folder
+
+### Extension
+The current implementation only support ids for the left-hand side.
+It currently can not support field lookup and list index as the left-hand variables, or a mixture of these three kinds of assignment(id, lookup, index).
+If we want to support the other two types, we need to change the "destructive-assign" a little.
+Instead of just using a simple "names" field, we need specify which type of assignment it is.
+Like:
+```typescript
+export type AssignVar = {name: string, assigntype: string}
+{  a?: A, tag: "destructive-assign", names: Array<AssignVar>, iterable: Expr<A>}
+```
+Of course, this structure is not enough, to handle the later compilation of lookup and list index, the AssginVar need to contain more information.
+Thus, in the lower.ts level, we can build different statements for the expanded "destructive-assign" based on their assign type.
