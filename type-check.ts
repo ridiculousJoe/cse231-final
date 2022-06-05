@@ -270,6 +270,23 @@ export function tcStmt(env : GlobalTypeEnv, locals : LocalTypeEnv, stmt : Stmt<n
       if(!isAssignable(env, tValExpr.a, nameTyp)) 
         throw new TypeCheckError("Non-assignable types");
       return {a: NONE, tag: stmt.tag, name: stmt.name, value: tValExpr};
+    case "destructive-assign":
+      const tIterableExpr = tcExpr(env, locals, stmt.iterable);
+      if(tIterableExpr.a.tag !== "list") throw new TypeCheckError("Destructive assignment can only support list currently")
+      const objType = tIterableExpr.a.elementtype;
+      stmt.names.forEach((name, idx) => {
+        var nameTyp;
+        if (locals.vars.has(name)) {
+          nameTyp = locals.vars.get(name);
+        } else if (env.globals.has(name)) {
+          nameTyp = env.globals.get(name);
+        } else {
+          throw new TypeCheckError("Unbound id: " + name);
+        }
+        if(!isAssignable(env, objType, nameTyp))
+          throw new TypeCheckError("Non-assignable types")
+      });
+      return {a: NONE, tag: stmt.tag, names: stmt.names, iterable: tIterableExpr};
     case "expr":
       const tExpr = tcExpr(env, locals, stmt.expr);
       return {a: tExpr.a, tag: stmt.tag, expr: tExpr};
