@@ -104,6 +104,18 @@ function flattenStmt(s : AST.Stmt<Type>, blocks: Array<IR.BasicBlock<Type>>, env
       //   { a: s.a, tag: "assign", name: s.name, value: vale}
       // ]];
 
+    case "destructive-assign":
+      if(s.iterable.a.tag !== "list") throw new Error("Compiler is cursed, go home.")
+      const elementType = s.iterable.a.elementtype;
+      var valinits : Array<IR.VarInit<Type>> = [];
+      s.names.forEach((name, idx) => {
+        var element : AST.Expr<Type> = {a: elementType, tag: "index", obj: s.iterable, index: PyLiteralExpr(PyInt(idx))};
+        var assignStmt : AST.Stmt<Type> = {  a: NONE, tag: "assign", name: name, value: element };
+        var inits = flattenStmt(assignStmt, blocks, env);
+        valinits.push(...inits);
+      });
+      return valinits
+
     case "return":
     var [valinits, valstmts, val] = flattenExprToVal(s.value, env);
     blocks[blocks.length - 1].stmts.push(

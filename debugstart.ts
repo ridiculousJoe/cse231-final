@@ -74,7 +74,7 @@ a[2] = 5
 c = a+b
 print(c[2*3+1]) `
 
-  const ast = parse(source);
+  // const ast = parse(source);
   
   const repl = new BasicREPL(await addLibs());
   const result = repl.run(source).then(result => {
