@@ -54,4 +54,86 @@
     (i32.add (local.get $target) (i32.mul (local.get $length) (i32.const 4)))
   )
 
+  ;; Given the address of a string str, return the address of list(str)
+  ;; e.g.,
+  ;; vowel_string = "aeiou"
+  ;; list(vowel_string)
+  ;; ["a", "e", "i", "o", "u"]
+  ;; pseudo code:
+  ;; int n = source[0]
+  ;; int i = 0
+  ;; int j = 1
+  ;; if (n == 0) {
+  ;;  target = alloc(2)
+  ;;  target[0] = 1
+  ;;  target[1] = source
+  ;; } else {
+  ;;  tmp = alloc(2 * n)
+  ;;  target = alloc(n + 1)
+  ;;  target[0] = n
+  ;;  for (; j <= n; ) {
+  ;;    tmp[i] = 1
+  ;;    tmp[i + 1] = source[j]
+  ;;    target[j] = tmp + i * 4
+  ;;    i += 2
+  ;;    j += 1
+  ;;  }
+  ;;  return target
+  ;; }
+    (func $tolist_str (export "tolist_str") (param $source i32) (result i32)
+      ;; int n = source[0], i = 0, j = 1
+      (local $n i32)
+      (local $i i32)
+      (local $j i32)
+      (local $target i32)
+      (local $tmp i32)
+      (local.set $n (call $load (local.get $source) (i32.const 0)))
+      (local.set $i (i32.const 0))
+      (local.set $j (i32.const 1))
+      ;; if (n == 0)
+      (i32.eq (local.get $n) (i32.const 0))
+      (if
+        (then
+          ;; target = alloc(2)
+          (local.set $target (call $alloc (i32.const 2)))
+          ;; target[0] = 1
+          (call $store (local.get $target) (i32.const 0) (i32.const 1))
+          ;; target[1] = source
+          (call $store (local.get $target) (i32.const 1) (local.get $source))
+        )
+        (else
+          ;; tmp = alloc(2 * n)
+          (local.set $tmp (call $alloc (i32.mul (i32.const 2) (local.get $n))))
+          ;; target = alloc(n + 1)
+          (local.set $target (call $alloc (i32.add (local.get $n) (i32.const 1))))
+          ;; target[0] = n
+          (call $store (local.get $target) (i32.const 0) (local.get $n))
+          (loop $my_loop
+            ;; j <= n
+            (i32.le_s (local.get $j) (local.get $n))
+            (if
+              (then
+                ;; tmp[i] = 1
+                (call $store (local.get $tmp) (local.get $i) (i32.const 1))
+                ;; tmp[i + 1] = source[j]
+                (call $store (local.get $tmp) (i32.add (local.get $i) (i32.const 1)) (call $load (local.get $source) (local.get $j)))
+                ;; target[j] = tmp + i * 4
+                (call $store (local.get $target) (local.get $j) (i32.add (local.get $tmp) (i32.mul (local.get $i) (i32.const 4))))
+                ;; i += 2
+                (local.set $i (i32.add (local.get $i) (i32.const 2)))
+                ;; j += 1
+                (local.set $j (i32.add (local.get $j) (i32.const 1)))
+                ;; do loop
+                (br $my_loop)
+              )
+              (else
+                ;; end loop
+              )
+            )
+          )
+        )
+      )
+      ;; return target
+      (local.get $target)
+    )
 )

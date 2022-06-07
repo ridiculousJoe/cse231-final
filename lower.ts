@@ -443,7 +443,7 @@ function flattenExprToExpr(e : AST.Expr<Type>, env : GlobalEnv) : [Array<IR.VarI
         ]
       }
     case "index":
-      if(e.a.tag=="str"){
+      if(e.obj.a===STR){
         const [oinits, ostmts, oval] = flattenExprToVal(e.obj, env);
         const [iinits, istmts, ival] = flattenExprToVal(e.index, env);
         return [[...oinits, ...iinits], [...ostmts, ...istmts], {tag: "str-index", start: oval, offset: ival} ];

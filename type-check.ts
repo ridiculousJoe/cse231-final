@@ -1,7 +1,7 @@
 
 import { table } from 'console';
 import {Stmt, Expr, Type, UniOp, BinOp, Literal, Program, FunDef, VarInit, Class, Parameter} from './ast';
-import {NUM, BOOL, NONE, CLASS, STR} from './utils';
+import {NUM, BOOL, NONE, CLASS, STR, LIST} from './utils';
 import { emptyEnv } from './compiler';
 import {equal} from "assert";
 import {getNonLocalsInFunBody} from "./lambdalift";
@@ -413,7 +413,10 @@ export function tcExpr(env : GlobalTypeEnv, locals : LocalTypeEnv, expr : Expr<n
       } else if (expr.name === "len") {
         const tArg = tcExpr(env, locals, expr.arg);
         return {...expr, a: NUM, arg: tArg};
-      }else if(env.functions.has(expr.name)) {
+      } else if (expr.name === "list") {
+        const tArg = tcExpr(env, locals, expr.arg);
+        return {...expr, a: LIST(STR), arg: tArg};
+      } else if(env.functions.has(expr.name)) {
         const [[expectedArgTyp], retTyp] = env.functions.get(expr.name);
         const tArg = tcExpr(env, locals, expr.arg);
         

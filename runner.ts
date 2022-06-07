@@ -114,12 +114,14 @@ export function augmentEnv(env: GlobalEnv, prog: Program<Type>, strings : Map<st
 
 
 function getStrings(source: string) : Map<string, string> {
-  // TODO: figure regexp out
   var myRegExp = new RegExp(`(["'])(?:(?!\\1)[^\\\\]|\\\\.)*\\1`, "gm");
   var matches = source.matchAll(myRegExp);
   var res = new Map<string, string>();
   for (const match of matches) {
-    res.set(match[0].slice(1, -1), generateName("newStr"));
+    var cur = match[0].slice(1, -1);
+    if (!res.has(cur)) {
+      res.set(cur, generateName("newStr"));
+    }
   }
   return res;
 }
@@ -179,6 +181,7 @@ export async function run(source : string, config: Config) : Promise<[Value, Glo
     (func $load (import "libmemory" "load") (param i32) (param i32) (result i32))
     (func $store (import "libmemory" "store") (param i32) (param i32) (param i32))
     (func $copy (import "libmemory" "copy") (param i32) (param i32) (param i32) (result i32))
+    (func $tolist_str (import "libmemory" "tolist_str") (param i32) (result i32))
     ${globalImports}
     ${compiled.vtable}
     ${globalDecls}

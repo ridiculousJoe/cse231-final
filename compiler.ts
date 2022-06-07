@@ -202,6 +202,8 @@ function codeGenExpr(expr: Expr<Type>, env: GlobalEnv): Array<string> {
       } else if (expr.name === "len" && argTyp.tag === "list") {
         // argStmts = argStmts.concat([`(i32.const ${argTyp.listsize})`])  // this is the length of list
         callName = "len_list"
+      } else if (expr.name === "list" && argTyp === STR) {
+        callName = "tolist_str"
       }
       return argStmts.concat([`(call $${callName})`]);
 
